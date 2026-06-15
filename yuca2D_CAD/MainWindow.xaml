@@ -7,13 +7,27 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <DockPanel>
-        <!-- 簡易ツールバー -->
+        <!--
+            簡易ツールバー
+            - この StackPanel は将来的にツールを追加するための場所です。
+            - 各ボタンはコードビハインドのハンドラに接続されています。
+            - UI は初期段階なのでスタイルやアイコンは未適用です。
+        -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4" HorizontalAlignment="Left">
+            <!-- 線描画モードに切り替えるボタン -->
             <Button Name="LineButton" Click="LineButton_Click" Margin="2">線描画</Button>
+            <!-- 選択モードに切り替えるボタン（未実装の部分が多い） -->
             <Button Name="SelectButton" Click="SelectButton_Click" Margin="2">選択</Button>
+            <!-- キャンバス上の全オブジェクトを消去するボタン -->
             <Button Name="ClearButton" Click="ClearButton_Click" Margin="2">クリア</Button>
         </StackPanel>
 
+        <!--
+            描画領域 (Canvas)
+            - Background を設定してマウスイベントを受け取れるようにしています。
+            - 現状は MouseLeftButtonDown で2点クリックにより線を作成します。
+            - 将来的にはマウスドラッグでプレビュー、パン／ズーム、選択などを実装します。
+        -->
         <Canvas Name="DrawingCanvas"
                 Background="White"
                 MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"/>
