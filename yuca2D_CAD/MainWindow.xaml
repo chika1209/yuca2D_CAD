@@ -6,7 +6,16 @@
         xmlns:local="clr-namespace:yuca2D_CAD"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-	<Canvas Name="DrawingCanvas"
-            Background="White"
-			MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"/>
+    <DockPanel>
+        <!-- 簡易ツールバー -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4" HorizontalAlignment="Left">
+            <Button Name="LineButton" Click="LineButton_Click" Margin="2">線描画</Button>
+            <Button Name="SelectButton" Click="SelectButton_Click" Margin="2">選択</Button>
+            <Button Name="ClearButton" Click="ClearButton_Click" Margin="2">クリア</Button>
+        </StackPanel>
+
+        <Canvas Name="DrawingCanvas"
+                Background="White"
+                MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"/>
+    </DockPanel>
 </Window>
