@@ -6,7 +6,6 @@
         xmlns:local="clr-namespace:yuca2D_CAD"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        hoge
-    </Grid>
+	<Canvas Name="DrawingCanvas"
+            Background="White"/>
 </Window>
