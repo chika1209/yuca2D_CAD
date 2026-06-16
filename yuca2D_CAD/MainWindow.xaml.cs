@@ -29,9 +29,22 @@ public partial class MainWindow : Window
     // アプリ起動時は線描画モードにしておく（好みに応じて変更可）
     private Mode currentMode = Mode.Line;
 
+    // プレビュー用の一時 Line を保持する。
+    // 実際に確定した線は DrawingCanvas.Children に追加されるが、
+    // プレビューはあくまで視覚フィードバック用であり確定時のみ Children に追加する。
+    private Line? previewLine = null;
+
     public MainWindow()
     {
         InitializeComponent();
+    }
+
+    private void DrawingCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // 右クリックで現在の描画途中状態をキャンセルする
+        // CADでは Esc や右クリックでコマンドキャンセルが一般的なので簡易対応
+        startPoint = null;
+        RemovePreviewLine();
     }
 
     private void LineButton_Click(object sender, RoutedEventArgs e)
@@ -39,6 +52,8 @@ public partial class MainWindow : Window
         // ツールを線描画に切り替える
         // 将来的にはボタンの見た目をトグルにしたり、ホットキーで切り替えられるようにする
         currentMode = Mode.Line;
+        // モード切替時はプレビューをリセット
+        RemovePreviewLine();
     }
 
     private void SelectButton_Click(object sender, RoutedEventArgs e)
@@ -50,6 +65,10 @@ public partial class MainWindow : Window
         //  - 選択ハンドルとドラッグによる移動・スケーリング
         //  - 選択情報はモデル側で管理し、見た目はアドオンのレイヤーで描画する
         currentMode = Mode.Select;
+        // 選択モードに切り替えた際には、もし線描画の途中(startPoint が設定されている)
+        // 場合はそれをキャンセルしておく。これにより意図しない連続描画が防止される。
+        startPoint = null;
+        RemovePreviewLine();
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -59,6 +78,39 @@ public partial class MainWindow : Window
         // コマンドパターンを使用して操作を記録するように変更すること。
         DrawingCanvas.Children.Clear();
         startPoint = null;
+        RemovePreviewLine();
+    }
+
+    private void RemovePreviewLine()
+    {
+        if (previewLine != null)
+        {
+            // プレビューは Children に追加していないのでキャンバスから直接削除する必要はないが、
+            // 万が一追加しているケースに備えて安全に削除処理を行う
+            if (DrawingCanvas.Children.Contains(previewLine))
+            {
+                DrawingCanvas.Children.Remove(previewLine);
+            }
+
+            previewLine = null;
+        }
+    }
+
+    private void EnsurePreviewLine()
+    {
+        if (previewLine == null)
+        {
+            previewLine = new Line
+            {
+                Stroke = Brushes.Gray,
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection() { 4, 2 },
+                IsHitTestVisible = false // プレビューはヒットテスト対象にしない
+            };
+
+            // プレビューは Children に追加して視覚化する
+            DrawingCanvas.Children.Add(previewLine);
+        }
     }
 
     private void DrawingCanvas_MouseLeftButtonDown(
@@ -76,27 +128,36 @@ public partial class MainWindow : Window
             {
                 // 最初のクリック: 始点を記憶
                 startPoint = p;
+                // 始点が決まったらマウス移動でプレビューを表示できるようにする
+                EnsurePreviewLine();
             }
             else
             {
-                // 2回目のクリック: 終点を使って Line 要素を作成
+                // 既に始点がある場合は、その始点から今回クリック位置までの線を確定する
                 Line line = new Line();
 
-                // Canvas 上の座標系 (左上が原点) をそのまま使用
                 line.X1 = startPoint.Value.X;
                 line.Y1 = startPoint.Value.Y;
 
                 line.X2 = p.X;
                 line.Y2 = p.Y;
 
-                // 簡易的な見た目設定。将来的にはスタイルや線種をプロパティ化する
                 line.Stroke = Brushes.Black;
                 line.StrokeThickness = 2;
 
                 DrawingCanvas.Children.Add(line);
+                // CADライクな連続線描画にするために、今回の終点を次の始点として保持する
+                // これにより三回目以降は一回クリックで次の線が確定される
+                startPoint = p;
 
-                // 次の線描画に備えて始点をクリア
-                startPoint = null;
+                // 次の線描画に備えてプレビューの始点を更新する
+                if (previewLine != null)
+                {
+                    previewLine.X1 = startPoint.Value.X;
+                    previewLine.Y1 = startPoint.Value.Y;
+                    previewLine.X2 = startPoint.Value.X;
+                    previewLine.Y2 = startPoint.Value.Y;
+                }
             }
         }
         else if (currentMode == Mode.Select)
@@ -105,6 +166,24 @@ public partial class MainWindow : Window
             // 例:
             //  - foreach (var child in DrawingCanvas.Children) { if (HitTest(child, p)) select; }
             //  - 選択された要素には Adorner や別レイヤーでハンドルを描画する
+        }
+    }
+
+    private void DrawingCanvas_MouseMove(object sender, MouseEventArgs e)
+    {
+        // マウス移動時にプレビューを更新する処理
+        if (currentMode == Mode.Line && startPoint != null)
+        {
+            Point p = e.GetPosition(DrawingCanvas);
+
+            // プレビューラインが無ければ作成
+            EnsurePreviewLine();
+
+            // プレビューの始点は startPoint、終点は現在のマウス位置
+            previewLine!.X1 = startPoint.Value.X;
+            previewLine!.Y1 = startPoint.Value.Y;
+            previewLine!.X2 = p.X;
+            previewLine!.Y2 = p.Y;
         }
     }
 }

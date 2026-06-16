@@ -30,6 +30,8 @@
         -->
         <Canvas Name="DrawingCanvas"
                 Background="White"
-                MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"/>
+                MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"
+                MouseRightButtonDown="DrawingCanvas_MouseRightButtonDown"
+                MouseMove="DrawingCanvas_MouseMove"/>
     </DockPanel>
 </Window>
