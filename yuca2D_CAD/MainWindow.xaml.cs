@@ -190,8 +190,7 @@ public partial class MainWindow : Window
             DrawingCanvas.Cursor = Cursors.Arrow;
         }
 
-        // タイトルに現在のモードを表示（簡易デバッグ用）
-        this.Title = $"MainWindow - Mode: {currentMode}";
+        // アプリ名は XAML の Title を使うため、ここではタイトルを上書きしない
     }
 
     private void EnsurePreviewEllipse()

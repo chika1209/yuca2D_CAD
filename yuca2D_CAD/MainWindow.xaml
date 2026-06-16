@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:yuca2D_CAD"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="yuca2D CAD" Height="450" Width="800">
     <!--
         Layout を Grid に変更しました。
         上部 (ツールバー) を 20% 相当、下部 (描画領域) を 80% 相当に分割します。
