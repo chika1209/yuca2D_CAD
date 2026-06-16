@@ -51,6 +51,18 @@
                     </Button>
 
                     <!-- クリアボタン -->
+                    <!-- 円描画ボタン -->
+                    <Button Name="CircleButton" Click="CircleButton_Click" Margin="4" Padding="6">
+                        <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                            <Viewbox Width="24" Height="24">
+                                <Canvas Width="24" Height="24">
+                                    <Ellipse Width="14" Height="14" Stroke="Black" StrokeThickness="2" Canvas.Left="5" Canvas.Top="5"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="円" HorizontalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                    </Button>
+
                     <Button Name="ClearButton" Click="ClearButton_Click" Margin="4" Padding="6">
                         <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                             <TextBlock Text="🗑" FontSize="18" HorizontalAlignment="Center"/>
