@@ -6,32 +6,79 @@
         xmlns:local="clr-namespace:yuca2D_CAD"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <DockPanel>
-        <!--
-            簡易ツールバー
-            - この StackPanel は将来的にツールを追加するための場所です。
-            - 各ボタンはコードビハインドのハンドラに接続されています。
-            - UI は初期段階なのでスタイルやアイコンは未適用です。
-        -->
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4" HorizontalAlignment="Left">
-            <!-- 線描画モードに切り替えるボタン -->
-            <Button Name="LineButton" Click="LineButton_Click" Margin="2">線描画</Button>
-            <!-- 選択モードに切り替えるボタン（未実装の部分が多い） -->
-            <Button Name="SelectButton" Click="SelectButton_Click" Margin="2">選択</Button>
-            <!-- キャンバス上の全オブジェクトを消去するボタン -->
-            <Button Name="ClearButton" Click="ClearButton_Click" Margin="2">クリア</Button>
-        </StackPanel>
+    <!--
+        Layout を Grid に変更しました。
+        上部 (ツールバー) を 20% 相当、下部 (描画領域) を 80% 相当に分割します。
+        - TabControl を使ってタブ形式のツールパレットにしています。
+        - 描画領域は ScrollViewer に入れ、Canvas をスクロール可能にします。
+        将来的にはタブ内にアイコンやグループを増やしていけます。
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 上部を 2:8 の比率で設定 -->
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="8*" />
+        </Grid.RowDefinitions>
 
-        <!--
-            描画領域 (Canvas)
-            - Background を設定してマウスイベントを受け取れるようにしています。
-            - 現状は MouseLeftButtonDown で2点クリックにより線を作成します。
-            - 将来的にはマウスドラッグでプレビュー、パン／ズーム、選択などを実装します。
-        -->
-        <Canvas Name="DrawingCanvas"
-                Background="White"
-                MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"
-                MouseRightButtonDown="DrawingCanvas_MouseRightButtonDown"
-                MouseMove="DrawingCanvas_MouseMove"/>
-    </DockPanel>
+        <!-- タブ形式のツールバー (上部20%) -->
+        <TabControl Grid.Row="0" Margin="4">
+            <TabItem Header="描画">
+                <!-- 描画タブ: ツールのアイコンを横に並べる -->
+                <StackPanel Orientation="Horizontal" Margin="4">
+                    <!-- 線描画ボタン: アイコンは簡易的に Path/Line を使って表現 -->
+                    <Button Name="LineButton" Click="LineButton_Click" Margin="4" Padding="6">
+                        <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                            <Viewbox Width="24" Height="24">
+                                <Canvas Width="24" Height="24">
+                                    <Line X1="4" Y1="20" X2="20" Y2="4" Stroke="Black" StrokeThickness="2"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="線" HorizontalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- 選択ボタン -->
+                    <Button Name="SelectButton" Click="SelectButton_Click" Margin="4" Padding="6">
+                        <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                            <Viewbox Width="24" Height="24">
+                                <Canvas Width="24" Height="24">
+                                    <!-- 簡易的な選択アイコン: 四角 -->
+                                    <Rectangle Width="14" Height="14" Stroke="Black" StrokeThickness="2" Canvas.Left="5" Canvas.Top="5"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="選択" HorizontalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- クリアボタン -->
+                    <Button Name="ClearButton" Click="ClearButton_Click" Margin="4" Padding="6">
+                        <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                            <TextBlock Text="🗑" FontSize="18" HorizontalAlignment="Center"/>
+                            <TextBlock Text="クリア" HorizontalAlignment="Center" FontSize="12"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </TabItem>
+
+            <TabItem Header="編集">
+                <!-- 編集タブ: 将来的に移動、回転、スナップ等を追加 -->
+                <StackPanel Orientation="Horizontal" Margin="4">
+                    <TextBlock Text="編集ツールをここに追加" VerticalAlignment="Center"/>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+
+        <!-- 描画領域 (下部80%) -->
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="LightGray">
+            <!--
+                Canvas はスクロール領域として十分な大きさを持たせるために
+                初期の MinWidth/MinHeight を設定しています。
+                将来的にはズーム時にサイズを動的に更新する実装にします。
+            -->
+            <Canvas Name="DrawingCanvas" Background="White" MinWidth="1200" MinHeight="800"
+                    MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"
+                    MouseRightButtonDown="DrawingCanvas_MouseRightButtonDown"
+                    MouseMove="DrawingCanvas_MouseMove"/>
+        </ScrollViewer>
+    </Grid>
 </Window>
