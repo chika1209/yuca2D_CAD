@@ -37,6 +37,21 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Esc キーでプレビューを削除するためにプレビューキーイベントを購読
+        this.PreviewKeyDown += Window_PreviewKeyDown;
+        // ウィンドウ読み込み時にキーボードフォーカスを当てておく
+        this.Loaded += (s, e) => Keyboard.Focus(this);
+    }
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            // 線描画自体を終了する: プレビューを削除し、startPoint をクリアして描画状態をリセット
+            RemovePreviewLine();
+            startPoint = null;
+            e.Handled = true;
+        }
     }
 
     private void DrawingCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
