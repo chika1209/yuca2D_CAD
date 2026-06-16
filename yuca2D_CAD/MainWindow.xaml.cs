@@ -17,28 +17,36 @@ namespace yuca2D_CAD;
 public partial class MainWindow : Window
 {
     // startPoint は描画中の基準点を保持します。
-    // - 線モード: 最初のクリックで始点を保存し、次のクリックで終点を確定します。
-    // - 円モード: 最初のクリックで中心を保存し、次のクリックで半径を確定します。
-    // null の場合は描画が開始されていない状態を示します。
+    // 用途の詳細:
+    // - 線モード: startPoint は "始点" を表します。ユーザーが最初にクリックした座標を保存し、
+    //   次回のクリックでそこから現在のクリック位置までを実線で確定します。
+    // - 円モード: startPoint は "中心" を表します。中心から現在のマウス位置までの距離を半径として扱います。
+    // - 四角モード: startPoint は矩形の一隅 (corner) を表します。もう一方の対角点は次のクリック位置で決まります。
+    // 値が null の場合は「現在描画中の図形はない（待機状態）」を意味します。
     private Point? startPoint = null;
 
     // 現在のツールモードを表す簡易列挙体
-    // - None: 未選択
-    // - Line: 線を描画するモード
-    // - Circle: 円を描画するモード
-    // - Select: オブジェクト選択・編集モード（プレースホルダ）
-    private enum Mode { None, Line, Circle, Select }
+    // 解説:
+    // - None: ツール未選択。描画イベントは無視される想定。
+    // - Line: 2クリックで線を作成。連続描画（終点を次の始点にする）をサポートしている。
+    // - Circle: 1クリックで中心を決め、2クリック目で半径を確定して円を作成する。
+    // - Rect: 1クリックで一隅を決め、2クリック目で対角点を指定して矩形を作成する。
+    // - Select: 将来的な選択／編集モード。現在はプレースホルダ。
+    private enum Mode { None, Line, Circle, Rect, Select }
 
     // アプリ起動時は線描画モードにする（必要なら初期値を変更する）
     // currentMode は UI のツール選択に応じて描画挙動を切り替えます。
     private Mode currentMode = Mode.Line;
 
-    // プレビュー用の一時 Line / Ellipse を保持する。
-    // - previewLine: 線描画時の破線プレビュー。確定されると実体の Line が追加される。
-    // - previewEllipse: 円描画時の破線プレビュー。プレビューは描画補助でありヒットテスト対象外。
-    // プレビュー要素は描画確定時に RemovePreview() で削除される。
+    // プレビュー用の一時要素を保持する。
+    // 目的: ユーザーが次のクリックやマウス移動でどのような図形が生成されるか視覚的に把握できるようにする。
+    // - previewLine: 線描画時に使用する破線の Line。実体の Line を追加するまでは編集の対象にしない。
+    // - previewEllipse: 円描画時に使用する破線の Ellipse。中心と半径は startPoint とマウス位置から算出する。
+    // - previewRect: 矩形描画時に使用する破線の Rectangle。startPoint とマウス位置で左上/幅/高さを決定する。
+    // いずれも IsHitTestVisible=false にして、ユーザー操作の邪魔にならないようにしている。
     private Line? previewLine = null;
     private Ellipse? previewEllipse = null;
+    private Rectangle? previewRect = null;
 
     public MainWindow()
     {
@@ -47,7 +55,11 @@ public partial class MainWindow : Window
         this.PreviewKeyDown += Window_PreviewKeyDown;
         // アクティブなキーボードフォーカスをウィンドウに設定しておくことで
         // キーイベント（Esc 等）を確実に受け取れるようにする
-        this.Loaded += (s, e) => Keyboard.Focus(this);
+        this.Loaded += (s, e) =>
+        {
+            Keyboard.Focus(this);
+            UpdateModeVisuals();
+        };
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -55,10 +67,12 @@ public partial class MainWindow : Window
         if (e.Key == Key.Escape)
         {
             // Esc は現在のコマンドを完全にキャンセルする用途に使う
-            // ここではプレビューを消し、描画の状態（startPoint）もクリアする
+            // - 画面上に残っているプレビュー要素（破線など）を削除
+            // - startPoint を null にして内部状態をリセット
+            // これによりユーザーは新たに描画を開始できる
             RemovePreview();
             startPoint = null;
-            // 他のコンポーネントに伝播させない
+            // 他のコントロールへイベントを伝搬させない
             e.Handled = true;
         }
     }
@@ -69,6 +83,7 @@ public partial class MainWindow : Window
         // CADでは Esc や右クリックでコマンドキャンセルが一般的なので簡易対応
         startPoint = null;
         RemovePreview();
+        UpdateModeVisuals();
     }
 
     private void LineButton_Click(object sender, RoutedEventArgs e)
@@ -78,6 +93,7 @@ public partial class MainWindow : Window
         currentMode = Mode.Line;
         // モード切替時はプレビューをリセット
         RemovePreview();
+        UpdateModeVisuals();
     }
 
     private void SelectButton_Click(object sender, RoutedEventArgs e)
@@ -92,6 +108,7 @@ public partial class MainWindow : Window
         // 選択モードに移行する際は描画中の状態をクリアする
         startPoint = null;
         RemovePreview();
+        UpdateModeVisuals();
     }
 
     private void ClearButton_Click(object sender, RoutedEventArgs e)
@@ -107,7 +124,9 @@ public partial class MainWindow : Window
 
     private void RemovePreview()
     {
-        // プレビュー用の要素（線と楕円）を安全に削除する
+        // プレビュー用の要素（線・楕円・矩形）を安全に削除する
+        // 理由: プレビューは一時的に Canvas.Children に追加して視覚化しているため、
+        // 確定・取消のたびに明示的に削除する必要がある。
         if (previewLine != null)
         {
             if (DrawingCanvas.Children.Contains(previewLine))
@@ -127,6 +146,16 @@ public partial class MainWindow : Window
 
             previewEllipse = null;
         }
+
+        if (previewRect != null)
+        {
+            if (DrawingCanvas.Children.Contains(previewRect))
+            {
+                DrawingCanvas.Children.Remove(previewRect);
+            }
+
+            previewRect = null;
+        }
     }
 
     private void EnsurePreviewLine()
@@ -137,13 +166,32 @@ public partial class MainWindow : Window
             {
                 Stroke = Brushes.Gray,
                 StrokeThickness = 1,
+                // 破線スタイルはプレビューであることをユーザーに示すため
                 StrokeDashArray = new DoubleCollection() { 4, 2 },
-                IsHitTestVisible = false // プレビューはヒットテスト対象にしない
+                // プレビューはヒットテスト対象にしない（操作対象を邪魔しない）
+                IsHitTestVisible = false
             };
 
-            // プレビューは Children に追加して視覚化する
+            // Canvas に追加して視覚化する。削除は RemovePreview() で行う。
             DrawingCanvas.Children.Add(previewLine);
         }
+    }
+
+    // UI フィードバック: 現在のモードに応じてカーソルとウィンドウタイトルを更新する
+    private void UpdateModeVisuals()
+    {
+        // カーソル: 描画モードではクロスにする
+        if (currentMode == Mode.Line || currentMode == Mode.Circle || currentMode == Mode.Rect)
+        {
+            DrawingCanvas.Cursor = Cursors.Cross;
+        }
+        else
+        {
+            DrawingCanvas.Cursor = Cursors.Arrow;
+        }
+
+        // タイトルに現在のモードを表示（簡易デバッグ用）
+        this.Title = $"MainWindow - Mode: {currentMode}";
     }
 
     private void EnsurePreviewEllipse()
@@ -164,6 +212,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private void EnsurePreviewRect()
+    {
+        if (previewRect == null)
+        {
+            previewRect = new Rectangle
+            {
+                Stroke = Brushes.Gray,
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection() { 4, 2 },
+                // 破線と薄い色でプレビューを示す。操作対象にはしない。
+                IsHitTestVisible = false
+            };
+
+            DrawingCanvas.Children.Add(previewRect);
+        }
+    }
+
     private void DrawingCanvas_MouseLeftButtonDown(
         object sender,
         MouseButtonEventArgs e)
@@ -173,6 +238,11 @@ public partial class MainWindow : Window
         // 現状は Line モードでの2クリックによる線描画のみを実装しています。
         // 将来的にはマウスダウンで始点、マウスムーブでプレビュー、マウスアップで確定
         // のインタラクションに変更することを推奨します。
+        // クリックで確定するパターン（モード別に挙動を分岐）
+        // 各モードの共通設計:
+        // - 1回目クリック: startPoint を保存してプレビューを開始
+        // - マウス移動: プレビューを更新
+        // - 2回目クリック: 図形を確定して Canvas に追加、startPoint をクリア
         if (currentMode == Mode.Line)
         {
             if (startPoint == null)
@@ -198,6 +268,7 @@ public partial class MainWindow : Window
                 // Canvas に確定した線を追加
                 DrawingCanvas.Children.Add(line);
                 // CAD ライクに連続描画できるよう終点を次の始点として保持する
+                // これによりユーザーは続けてクリックするだけで折れ線を引ける
                 startPoint = p;
                 // プレビューの始点も更新しておく
                 if (previewLine != null)
@@ -213,28 +284,72 @@ public partial class MainWindow : Window
         {
             if (startPoint == null)
             {
-                // 最初のクリック: 円の中心を記憶しプレビュー表示を開始
+                // 最初のクリック: 円の中心を決定
+                // 以後の MouseMove/2回目クリックで半径を決定する
                 startPoint = p;
                 EnsurePreviewEllipse();
             }
             else
             {
-                // 2回目のクリックで円を確定（中心=startPoint, 半径=今回のクリックまでの距離）
+                // 確定処理:
+                // 半径 r はユークリッド距離 sqrt((dx)^2 + (dy)^2) で計算する
                 double dx = p.X - startPoint.Value.X;
                 double dy = p.Y - startPoint.Value.Y;
                 double r = Math.Sqrt(dx * dx + dy * dy);
 
+                // Ellipse の Width/Height は直径に相当するため 2*r を設定
                 Ellipse ellipse = new Ellipse();
                 ellipse.Width = r * 2;
                 ellipse.Height = r * 2;
                 ellipse.Stroke = Brushes.Black;
                 ellipse.StrokeThickness = 2;
 
+                // Canvas は左上基準なので、左上位置を中心 - r に合わせる
                 Canvas.SetLeft(ellipse, startPoint.Value.X - r);
                 Canvas.SetTop(ellipse, startPoint.Value.Y - r);
 
-                // 確定した円を Canvas に追加し、描画状態をクリア
+                // Canvas に追加して確定、内部状態をクリア
                 DrawingCanvas.Children.Add(ellipse);
+                startPoint = null;
+                RemovePreview();
+            }
+        }
+        else if (currentMode == Mode.Rect)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Debug] Rect mode MouseLeftButtonDown at {p}");
+            if (startPoint == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[Debug] Rect mode: setting startPoint");
+                // 最初のクリック: 矩形の一隅を記憶してプレビュー開始
+                startPoint = p;
+                EnsurePreviewRect();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[Debug] Rect mode: confirming rect from {startPoint} to {p}");
+                // 2回目のクリックで矩形を確定する。startPoint と今回クリック位置 p を対角点とする
+                double x1 = startPoint.Value.X;
+                double y1 = startPoint.Value.Y;
+                double x2 = p.X;
+                double y2 = p.Y;
+
+                double left = Math.Min(x1, x2);
+                double top = Math.Min(y1, y2);
+                double w = Math.Abs(x2 - x1);
+                double h = Math.Abs(y2 - y1);
+
+                Rectangle rect = new Rectangle();
+                rect.Width = w;
+                rect.Height = h;
+                rect.Stroke = Brushes.Black;
+                rect.StrokeThickness = 2;
+
+                Canvas.SetLeft(rect, left);
+                Canvas.SetTop(rect, top);
+
+                DrawingCanvas.Children.Add(rect);
+
+                // 確定後は状態をリセット
                 startPoint = null;
                 RemovePreview();
             }
@@ -251,6 +366,8 @@ public partial class MainWindow : Window
     private void DrawingCanvas_MouseMove(object sender, MouseEventArgs e)
     {
         // マウス移動時にプレビューを更新する処理
+        // MouseMove はプレビュー更新専用: マウス座標からプレビュー図形の見た目を調整する。
+        // 注意: Canvas 上の座標系は GetPosition で得た値と一致するため、変換は不要。
         if (currentMode == Mode.Line && startPoint != null)
         {
             Point p = e.GetPosition(DrawingCanvas);
@@ -266,6 +383,7 @@ public partial class MainWindow : Window
         }
         else if (currentMode == Mode.Circle && startPoint != null)
         {
+            // プレビュー更新: 中心=startPoint、半径=中心から現在マウス位置までの距離
             Point p = e.GetPosition(DrawingCanvas);
             double dx = p.X - startPoint.Value.X;
             double dy = p.Y - startPoint.Value.Y;
@@ -273,10 +391,31 @@ public partial class MainWindow : Window
 
             EnsurePreviewEllipse();
 
+            // Ellipse の Width/Height は直径を表す
             previewEllipse!.Width = r * 2;
             previewEllipse!.Height = r * 2;
+            // 左上座標は中心 - r
             Canvas.SetLeft(previewEllipse, startPoint.Value.X - r);
             Canvas.SetTop(previewEllipse, startPoint.Value.Y - r);
+        }
+        else if (currentMode == Mode.Rect && startPoint != null)
+        {
+            Point p = e.GetPosition(DrawingCanvas);
+            double x1 = startPoint.Value.X;
+            double y1 = startPoint.Value.Y;
+            double x2 = p.X;
+            double y2 = p.Y;
+
+            double left = Math.Min(x1, x2);
+            double top = Math.Min(y1, y2);
+            double w = Math.Abs(x2 - x1);
+            double h = Math.Abs(y2 - y1);
+
+            EnsurePreviewRect();
+            previewRect!.Width = w;
+            previewRect!.Height = h;
+            Canvas.SetLeft(previewRect, left);
+            Canvas.SetTop(previewRect, top);
         }
     }
 
@@ -284,5 +423,13 @@ public partial class MainWindow : Window
     {
         currentMode = Mode.Circle;
         RemovePreview();
+        UpdateModeVisuals();
+    }
+
+    private void RectButton_Click(object sender, RoutedEventArgs e)
+    {
+        currentMode = Mode.Rect;
+        RemovePreview();
+        UpdateModeVisuals();
     }
 }
